@@ -50,9 +50,6 @@ model User {
   reportsReceived Report[] @relation("reportedUser")
   notifications Notification[]
   analytics     UserAnalytics?
-  labAccount    LabAccount?
-  labComments   LabComment[]
-  labCaptures   LabCapture[]
 
   @@index([email])
   @@index([username])
@@ -366,39 +363,3 @@ model PostAnalytics {
   post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
 
-// ==================== SECURITY LAB (intentionally vulnerable — training only) ====================
-// Everything below powers the in-app "Security Lab". None of these models or the
-// endpoints that use them should ever be copied into a real product — they exist
-// on purpose to be broken. See src/routes/v1/lab.routes.js for details on each bug.
-
-model LabAccount {
-  id        Int      @id @default(autoincrement()) // sequential ids on purpose -> easy IDOR
-  userId    String   @unique
-  balance   Int      @default(1000)
-  apiKey    String   @default(cuid())               // "secret" leaked by an IDOR/broken access control bug
-  role      String   @default("member")              // mass-assignment target
-  createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model LabComment {
-  id        String   @id @default(cuid())
-  userId    String
-  body      String   @db.Text                        // rendered unsanitized on the frontend -> stored XSS
-  createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model LabCapture {
-  id         String   @id @default(cuid())
-  userId     String
-  flagKey    String                                    // which vulnerability was solved
-  capturedAt DateTime @default(now())
-
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, flagKey])
-  @@index([userId])
-}

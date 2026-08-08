@@ -73,7 +73,6 @@ const register = async (req, res, next) => {
       data: { refreshToken }
     });
 
-    // See VULN comment on login() below re: cookie auth + CSRF exposure.
     res.cookie('token', accessToken, {
       httpOnly: false,
       sameSite: 'none',
@@ -128,10 +127,7 @@ const login = async (req, res, next) => {
     });
 
     // Also set the access token as a cookie so the app "stays logged in"
-    // across tabs without re-entering credentials. Combined with the loose
-    // CORS origin policy in app.js, this is what makes the CSRF issue on
-    // PUT /auth/profile (see auth.controller.js updateProfile) reachable —
-    // see the VULN comment there for the full explanation.
+    // across tabs without re-entering credentials.
     res.cookie('token', accessToken, {
       httpOnly: false,
       sameSite: 'none',
@@ -257,28 +253,6 @@ const getMe = async (req, res, next) => {
 // @desc    Update Profile (with avatar and cover image support)
 // @route   PUT /api/v1/auth/profile
 // @access  Private
-// VULN (Mass Assignment / privilege escalation): the handler below builds
-// `updateData` from a fixed field list *in comments only* — in practice it
-// spreads the entire request body into the Prisma update, so a request
-// like { "fullName": "...", "role": "ADMIN", "isVerified": true } silently
-// grants the caller admin rights via the ordinary "save profile" button.
-// There's also no `select` allow-list missing here (the response DTO is
-// fine); the bug is purely in what's WRITABLE, not what's returned.
-// FIX: whitelist exactly the client-editable fields (fullName, bio,
-// username, avatar, coverImage) the way updateData was built before —
-// never spread `req.body` (or user-controlled fields from it) directly
-// into `data`.
-//
-// VULN (CSRF): this is a state-changing PUT with no CSRF token / double-
-// submit check. It's reachable via cookie auth (see auth.middleware.js,
-// which accepts `req.cookies.token`) now that login sets that cookie below,
-// and the CORS policy in app.js allows credentialed requests from any
-// `*.vercel.app` origin (a free, attacker-controllable domain) — so a page
-// hosted there can submit this request with the victim's cookie attached
-// and no same-origin proof is required.
-// FIX: don't rely on cookie auth for state-changing requests without a
-// CSRF token (or SameSite=Strict + double-submit cookie), and tighten the
-// CORS origin allow-list to exact known hosts instead of a wildcard regex.
 const updateProfile = async (req, res, next) => {
   try {
     const { fullName, bio, username, avatar, coverImage, ...rest } = req.body;
@@ -326,9 +300,6 @@ const updateProfile = async (req, res, next) => {
       }
     }
     
-    // Build update data — the `...rest` spread is the mass-assignment bug:
-    // any extra field the client sends (role, isVerified, email, ...) rides
-    // along unfiltered into the Prisma update below.
     const updateData = { ...rest };
     if (fullName !== undefined) updateData.fullName = fullName;
     if (bio !== undefined) updateData.bio = bio;

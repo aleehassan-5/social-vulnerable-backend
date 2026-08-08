@@ -13,7 +13,6 @@ const reportRoutes = require('./v1/reports.routes');
 const notificationRoutes = require('./v1/notifications.routes');
 const analyticsRoutes = require('./v1/analytics.routes');
 const adminRoutes = require('./v1/admin.routes');
-const labRoutes = require('./v1/lab.routes');
 
 // Register all routes
 router.use('/auth', authRoutes);
@@ -27,7 +26,6 @@ router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/admin', adminRoutes);
-router.use('/lab', labRoutes);
 
 // Welcome route
 router.get('/', (req, res) => {

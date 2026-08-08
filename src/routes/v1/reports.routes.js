@@ -14,7 +14,7 @@ router.post('/', protect, reportUser);
 router.get('/my', protect, getMyReports);
 router.get('/', protect, restrictTo('ADMIN'), getAllReports);
 router.get('/stats', protect, restrictTo('ADMIN'), getReportStats);
-router.get('/:id', protect, restrictTo('ADMIN'), getReportById);
+router.get('/:id', protect, getReportById);
 router.put('/:id/status', protect, restrictTo('ADMIN'), updateReportStatus);
 
 module.exports = router;

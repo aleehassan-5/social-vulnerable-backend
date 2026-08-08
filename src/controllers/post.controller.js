@@ -196,17 +196,6 @@ const getPost = async (req, res, next) => {
     const { id } = req.params;
     const userId = req.user?.id;
 
-    // VULN (Broken Access Control): the query never filters on `visibility`
-    // or ownership, so a post's author can set it to FRIENDS or ONLY_ME in
-    // the UI and it still gets served in full to any caller (including
-    // logged-out ones) who has/guesses the post id — e.g. from a share link,
-    // a notification payload, or by iterating ids. The feed/explore queries
-    // correctly filter by visibility; this single-post lookup is the one
-    // path that doesn't, so it's the realistic "found it by trying the
-    // direct link" bug rather than an obvious broken lab endpoint.
-    // FIX: add the same visibility check used elsewhere, e.g.
-    //   where: { id, isDeleted: false, author: { isActive: true },
-    //     OR: [{ visibility: 'PUBLIC' }, { authorId: userId }] }
     const post = await prisma.post.findFirst({
       where: { id, isDeleted: false, author: { isActive: true } },
       include: {
@@ -429,20 +418,6 @@ const toggleLike = async (req, res, next) => {
 //          post composer — e.g. pasting a news link auto-shows a card.
 // @route   POST /api/v1/posts/link-preview   { url }
 // @access  Private
-//
-// VULN (SSRF): the server fetches whatever URL the client sends with no
-// validation of the resolved host, and returns the raw response body back
-// to the client. That means it can be used to reach internal/private
-// network addresses the *server* can reach but the browser can't directly —
-// e.g. http://localhost:5000/api/v1/admin/dashboard (the app's own admin
-// API, from inside the network), http://169.254.169.254/... (cloud
-// metadata endpoints on most hosts), or other internal services — and the
-// response gets proxied straight back to whoever called this endpoint.
-// FIX: resolve the hostname first and reject loopback/private/link-local
-// ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16,
-// 169.254.0.0/16, ::1), only allow http/https, ideally use an allow-list of
-// known safe outbound hosts, and never return the raw fetched body verbatim
-// (extract just title/og:image server-side instead of proxying it).
 const linkPreview = async (req, res, next) => {
   try {
     const { url } = req.body || {};

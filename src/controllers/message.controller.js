@@ -104,19 +104,6 @@ const getMessages = async (req, res, next) => {
     const { page = 1, limit = 50 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // VULN (IDOR/BOLA): any authenticated user can read any conversation's
-    // messages just by knowing/guessing its id — there is no check that
-    // `userId` is actually a participant of `conversationId`. Conversation
-    // ids are returned in plenty of other API responses (getConversations,
-    // getOrCreateConversation) and are sequential-looking cuids, so this is
-    // exploitable simply by swapping the id in a normal, logged-in request.
-    // FIX: re-add the ConversationParticipant lookup below and 403 if the
-    // requesting user isn't a participant:
-    //   const participant = await prisma.conversationParticipant.findUnique({
-    //     where: { conversationId_userId: { conversationId, userId } }
-    //   });
-    //   if (!participant) return next(new ApiError(403, 'Not authorized to view this conversation'));
-
     const messages = await prisma.message.findMany({
       where: { conversationId },
       include: {

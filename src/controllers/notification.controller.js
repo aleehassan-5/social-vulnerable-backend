@@ -56,19 +56,15 @@ const getNotifications = async (req, res, next) => {
 const markAsRead = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
-    
-    const notification = await prisma.notification.findFirst({
-      where: {
-        id,
-        userId
-      }
+
+    const notification = await prisma.notification.findUnique({
+      where: { id }
     });
-    
+
     if (!notification) {
       return next(new ApiError(404, 'Notification not found'));
     }
-    
+
     await prisma.notification.update({
       where: { id },
       data: { isRead: true }

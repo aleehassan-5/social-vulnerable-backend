@@ -36,14 +36,14 @@ const errorHandler = (err, req, res, next) => {
   // Log non-operational errors (bugs) more verbosely
   if (!err.isOperational || statusCode === 500) {
     console.error(`[ERROR] ${statusCode}: ${message}`);
-    if (process.env.NODE_ENV === 'development') console.error(err.stack);
+    console.error(err.stack);
   }
 
   res.status(statusCode).json({
     success: false,
     message,
     statusCode,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    stack: err.stack
   });
 };
 

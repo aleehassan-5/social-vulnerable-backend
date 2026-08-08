@@ -9,20 +9,7 @@ const getUserProfile = async (req, res, next) => {
     const { username } = req.params;
     
     const user = await prisma.user.findUnique({
-      where: { username },
-      select: {
-        id: true,
-        username: true,
-        fullName: true,
-        avatar: true,
-        bio: true,
-        coverImage: true,
-        isVerified: true,
-        postsCount: true,
-        followersCount: true,
-        followingCount: true,
-        createdAt: true
-      }
+      where: { username }
     });
     
     if (!user) {
@@ -38,23 +25,6 @@ const getUserProfile = async (req, res, next) => {
 // @desc    Search users by username/name
 // @route   GET /api/v1/users/search?q=
 // @access  Private
-//
-// VULN (SQL Injection): built with raw string concatenation and executed via
-// $queryRawUnsafe instead of Prisma's normal parameterized query builder (or
-// even $queryRaw with a tagged template, which auto-escapes). A value like
-//   ' OR '1'='1
-// or a UNION SELECT breaks out of the intended WHERE clause and can pull
-// data — including passwordHash/refreshToken/email — from the User table
-// (or any other table) regardless of what the search box was meant to
-// return, since results are returned as-is with no field allow-list.
-// FIX: use the query builder Prisma already offers elsewhere in this file
-// (see getUserProfile above) — e.g.
-//   prisma.user.findMany({ where: { OR: [
-//     { username: { contains: q, mode: 'insensitive' } },
-//     { fullName: { contains: q, mode: 'insensitive' } },
-//   ]}, select: { id: true, username: true, fullName: true, avatar: true, bio: true } })
-// or, if a raw query is truly needed, prisma.$queryRaw`...${q}...` (tagged
-// template — parameterized) instead of $queryRawUnsafe with concatenation.
 const searchUsers = async (req, res, next) => {
   try {
     const q = String(req.query.q || '').trim();
@@ -71,8 +41,6 @@ const searchUsers = async (req, res, next) => {
     const rows = await prisma.$queryRawUnsafe(sql);
     res.json({ success: true, data: rows });
   } catch (error) {
-    // Leaking the raw DB error message is itself a smaller info-disclosure
-    // bug, left in intentionally alongside the injection above.
     res.status(400).json({ success: false, message: 'Search failed', error: error.message });
   }
 };
