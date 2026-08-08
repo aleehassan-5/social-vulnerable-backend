@@ -3,7 +3,7 @@ services:
     name: synergy-backend
     env: node
     buildCommand: npm install && npx prisma generate
-    startCommand: npx prisma migrate deploy && node src/server.js
+    startCommand: npx prisma db push --skip-generate && node src/server.js
     envVars:
       - key: NODE_ENV
         value: production
