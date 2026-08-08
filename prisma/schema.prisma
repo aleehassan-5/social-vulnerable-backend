@@ -1,0 +1,404 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER ====================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  passwordHash  String
+  fullName      String
+  avatar        String?
+  bio           String?   @db.Text
+  coverImage    String?
+  refreshToken  String?
+  
+  // Status
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  deactivatedAt DateTime?
+  role          Role      @default(USER)
+  
+  // Counters (denormalized)
+  postsCount    Int       @default(0)
+  followersCount Int      @default(0)
+  followingCount Int      @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  posts         Post[]
+  comments      Comment[]
+  postLikes     PostLike[]
+  commentLikes  CommentLike[]
+  shares        Share[]
+  following     Follow[]  @relation("follower")
+  followers     Follow[]  @relation("following")
+  messagesSent  Message[] @relation("sender")
+  conversations ConversationParticipant[]
+  reportsSent   Report[]  @relation("reporter")
+  reportsReceived Report[] @relation("reportedUser")
+  notifications Notification[]
+  analytics     UserAnalytics?
+  labAccount    LabAccount?
+  labComments   LabComment[]
+  labCaptures   LabCapture[]
+
+  @@index([email])
+  @@index([username])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+enum Role {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+// ==================== FOLLOW ====================
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower    User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ==================== POST ====================
+
+model Post {
+  id            String     @id @default(cuid())
+  content       String?    @db.Text
+  authorId      String
+  postType      PostType   @default(TEXT)
+  visibility    Visibility @default(PUBLIC)
+  
+  // Soft Delete
+  isDeleted     Boolean    @default(false)
+  deletedAt     DateTime?
+  
+  // Counters
+  likesCount    Int        @default(0)
+  commentsCount Int        @default(0)
+  sharesCount   Int        @default(0)
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  author        User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media         PostMedia[]
+  comments      Comment[]
+  likes         PostLike[]
+  shares        Share[]
+  analytics     PostAnalytics?
+
+  @@index([authorId])
+  @@index([isDeleted])
+  @@index([createdAt])
+  @@index([visibility])
+}
+
+enum PostType {
+  TEXT
+  PHOTO
+  VIDEO
+  AUDIO
+  FILE
+}
+
+enum Visibility {
+  PUBLIC
+  FRIENDS
+  ONLY_ME
+}
+
+// ==================== POST MEDIA ====================
+
+model PostMedia {
+  id        String     @id @default(cuid())
+  postId    String
+  mediaUrl  String
+  mediaType MediaType
+  order     Int        @default(0)
+  createdAt DateTime   @default(now())
+
+  post      Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+}
+
+// ==================== COMMENT ====================
+
+model Comment {
+  id            String    @id @default(cuid())
+  content       String    @db.Text
+  authorId      String
+  postId        String
+  
+  // Soft Delete
+  isDeleted     Boolean   @default(false)
+  deletedAt     DateTime?
+  
+  likesCount    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  likes         CommentLike[]
+
+  @@index([postId])
+  @@index([authorId])
+  @@index([isDeleted])
+}
+
+// ==================== LIKES ====================
+
+model PostLike {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+model CommentLike {
+  id        String   @id @default(cuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId])
+}
+
+// ==================== SHARE ====================
+
+model Share {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+// ==================== MESSAGING ====================
+
+model Conversation {
+  id            String    @id @default(cuid())
+  isGroup       Boolean   @default(false)
+  groupName     String?
+  groupAvatar   String?
+  lastMessage   String?   @db.Text
+  lastMessageAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  participants  ConversationParticipant[]
+  messages      Message[]
+
+  @@index([updatedAt])
+}
+
+model ConversationParticipant {
+  id             String     @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime   @default(now())
+  lastReadAt     DateTime   @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  senderId       String
+  messageType    MessageType @default(TEXT)
+  content        String?     @db.Text
+  mediaUrl       String?
+  replyToId      String?
+  readAt         DateTime?
+  createdAt      DateTime    @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation("sender", fields: [senderId], references: [id])
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  FILE
+}
+
+// ==================== REPORT (User Only) ====================
+
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String
+  reportedUserId String
+  reason         String
+  description    String?      @db.Text
+  status         ReportStatus @default(PENDING)
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  actionTaken    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  reporter       User         @relation("reporter", fields: [reporterId], references: [id])
+  reportedUser   User         @relation("reportedUser", fields: [reportedUserId], references: [id])
+
+  @@index([reportedUserId])
+  @@index([status])
+  @@index([createdAt])
+  @@unique([reporterId, reportedUserId])
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+// ==================== NOTIFICATION ====================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  actorId   String?
+  postId    String?
+  commentId String?
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+// ==================== ANALYTICS ====================
+
+model UserAnalytics {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  date      DateTime @default(now())
+  
+  postsCreated Int   @default(0)
+  commentsMade Int   @default(0)
+  likesGiven  Int    @default(0)
+  sharesMade  Int    @default(0)
+  messagesSent Int   @default(0)
+  
+  likesReceived Int  @default(0)
+  profileViews Int   @default(0)
+  newFollowers Int   @default(0)
+  
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model PostAnalytics {
+  id          String   @id @default(cuid())
+  postId      String   @unique
+  impressions Int      @default(0)
+  reach       Int      @default(0)
+  engagementRate Float?
+  updatedAt   DateTime @updatedAt
+
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+// ==================== SECURITY LAB (intentionally vulnerable — training only) ====================
+// Everything below powers the in-app "Security Lab". None of these models or the
+// endpoints that use them should ever be copied into a real product — they exist
+// on purpose to be broken. See src/routes/v1/lab.routes.js for details on each bug.
+
+model LabAccount {
+  id        Int      @id @default(autoincrement()) // sequential ids on purpose -> easy IDOR
+  userId    String   @unique
+  balance   Int      @default(1000)
+  apiKey    String   @default(cuid())               // "secret" leaked by an IDOR/broken access control bug
+  role      String   @default("member")              // mass-assignment target
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LabComment {
+  id        String   @id @default(cuid())
+  userId    String
+  body      String   @db.Text                        // rendered unsanitized on the frontend -> stored XSS
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LabCapture {
+  id         String   @id @default(cuid())
+  userId     String
+  flagKey    String                                    // which vulnerability was solved
+  capturedAt DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, flagKey])
+  @@index([userId])
+}
